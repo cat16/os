@@ -1,10 +1,9 @@
 use std::{
     env,
-    path::PathBuf,
     process::{self, Command, Stdio},
 };
 
-use clap::{Args, Parser, ValueEnum};
+use clap::Parser;
 use os::Bootloader;
 
 #[derive(Parser)]

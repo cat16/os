@@ -160,7 +160,7 @@ pub fn draw_test(framebuffer: &mut FrameBuffer) {
         .unwrap();
 
     // Draw centered text.
-    let text = "embedded-graphics";
+    let text = "jugando";
     Text::with_alignment(
         text,
         display.bounding_box().center() + Point::new(0, 15),
