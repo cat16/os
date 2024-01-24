@@ -1,5 +1,4 @@
 #![no_std]
-#![no_main]
 #![feature(abi_x86_interrupt)]
 
 pub mod arch;
@@ -12,8 +11,16 @@ pub fn main() -> ! {
     qemu::exit();
 }
 
+pub fn exit() -> ! {
+    qemu::exit();
+}
+
+pub fn hlt_loop() -> ! {
+    arch::hlt_loop();
+}
+
 #[panic_handler]
 pub fn panic(info: &core::panic::PanicInfo) -> ! {
     println!("{}", info);
-    qemu::exit()
+    exit()
 }

@@ -1,0 +1,10 @@
+[package]
+name = "runner"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+clap = { version = "4.4.16", features = ["derive"] }
+ovmf-prebuilt = "0.1.0-alpha.1"
+bootloader = { version = "0.11.5" }
+
