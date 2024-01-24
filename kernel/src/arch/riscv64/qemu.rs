@@ -1,5 +1,32 @@
-const UART_BASE: u32 = 0x10010000;
-const UART_REG_TXFIFO: *mut i32 = (UART_BASE + 0) as *mut i32;
+use core::fmt::{self, Write};
+
+use spin::Mutex;
+
+// --machine sifive_u
+// const UART_BASE: u32 = 0x10010000;
+// --machine virt
+const UART_BASE: u32 = 0x10000000;
+static UART: Mutex<Uart> = Mutex::new(Uart::new(UART_BASE));
+
+struct Uart {
+    base: u32,
+}
+
+impl Uart {
+    pub const fn new(base: u32) -> Self {
+        Self { base }
+    }
+}
+
+impl fmt::Write for Uart {
+    fn write_str(&mut self, s: &str) -> fmt::Result {
+        for b in s.as_bytes() {
+            while unsafe { *(self.base as *mut i32) } < 0 {}
+            unsafe { *(self.base as *mut i32) = *b as i32 }
+        }
+        Ok(())
+    }
+}
 
 pub fn exit() -> ! {
     unsafe {
@@ -20,9 +47,5 @@ pub fn exit() -> ! {
 }
 
 pub fn _print(args: core::fmt::Arguments<'_>) {
-    let msg = args.as_str().expect("bruh");
-    for b in msg.as_bytes() {
-        while unsafe { *UART_REG_TXFIFO } < 0 {}
-        unsafe { *UART_REG_TXFIFO = *b as i32 }
-    }
+    UART.lock().write_fmt(args).unwrap();
 }

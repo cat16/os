@@ -38,12 +38,12 @@ fn run_qemu(target: &Target, gdb: Option<Option<u16>>) {
         let handle = std::thread::spawn(move || {
             qemu.stdin(Stdio::null());
             qemu.stdout(Stdio::null());
-            let exit_status = qemu.status().unwrap();
+            qemu.status().unwrap();
         });
         gdb.status().unwrap();
         handle.join().unwrap();
     } else {
-        let exit_status = qemu.status().unwrap();
+        qemu.status().unwrap();
         // process::exit(exit_status.code().unwrap_or(-1));
     }
 }
