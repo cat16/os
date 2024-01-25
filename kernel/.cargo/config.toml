@@ -8,3 +8,5 @@ rustflags = [
     "-C", "link-arg=--omagic",
 ]
 
+[unstable]
+build-std = ["core", "compiler_builtins", "alloc"]

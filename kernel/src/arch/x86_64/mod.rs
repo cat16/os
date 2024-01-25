@@ -13,7 +13,7 @@ fn _start(boot_info: &'static mut bootloader_api::BootInfo) -> ! {
     if let Some(framebuffer) = boot_info.framebuffer.as_mut() {
         framebuffer::draw_test(framebuffer);
     }
-    main();
+    main(0);
 }
 
 pub fn hlt_loop() -> ! {

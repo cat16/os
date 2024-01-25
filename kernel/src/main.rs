@@ -2,15 +2,23 @@
 #![no_main]
 #![feature(abi_x86_interrupt)]
 #![feature(naked_functions)]
+#![feature(fn_align)]
 
+extern crate alloc;
+
+pub mod allocator;
 pub mod arch;
+pub mod fdt;
 pub mod log;
 pub mod qemu;
-pub mod sync;
 
-pub fn main() -> ! {
+pub fn main(dt_addr: u64) -> ! {
     println!("we out here vibin");
-    for _ in 0..20000000 {}
+    allocator::init_heap();
+    let fdt = fdt::FDT::new(dt_addr);
+    // for _ in 0..40000000 {}
+    let x = unsafe { *(0xdeadbeef as *mut u8) };
+    println!("we got {x}");
     qemu::exit();
 }
 
