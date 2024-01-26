@@ -29,6 +29,7 @@ fn run_qemu(target: &Target, gdb: Option<Option<u16>>) {
     if let Some(port) = gdb {
         let port = port.unwrap_or(1234);
         qemu.arg("-S");
+        qemu.args(["-m", "4G"]);
         qemu.args(["-gdb", &format!("tcp::{}", port)]);
         let mut gdb = target.gdb();
         gdb.arg("-q");

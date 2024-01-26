@@ -1,12 +1,12 @@
 pub mod csr;
 pub mod init;
-pub mod instructions;
+pub mod asm;
 pub mod interrupts;
-pub mod page;
+pub mod paging;
 pub mod qemu;
 
 pub fn wait() -> ! {
     loop {
-        instructions::wfi();
+        asm::wfi();
     }
 }

@@ -5,9 +5,9 @@ SECTIONS
     . = 0x80000000;
     .text : {
         *(.text.init)
-        *(.text)
+        *(.text .text.*)
     }
-    PROVIDE(global_pointer = .);
+    PROVIDE(_global_pointer = .);
     .rodata : {
         *(.rodata .rodata.*)
     }
@@ -15,12 +15,13 @@ SECTIONS
         *(.sdata .sdata.*) *(.data .data.*)
     }
     .bss : {
-        PROVIDE(_bss_start = .);
         *(.sbss .sbss.*) *(.bss .bss.*)
-        PROVIDE(_bss_end = .);
     }
-    . += 0x8000;
     . = ALIGN(16);
-    PROVIDE(stack_top = .);
+    PROVIDE(_stack_start = .);
+    . += 0x8000;
+    PROVIDE(_stack_end = .);
+    . = ALIGN(4096); /* 2^12 */
+    PROVIDE(_heap_start = .);
 }
 

@@ -47,5 +47,13 @@ pub fn exit() -> ! {
 }
 
 pub fn _print(args: core::fmt::Arguments<'_>) {
+    // NOTE: something really dumb can happen here;
+    // if you evaluate an expression in a print statement, and that
+    // causes an interrupt, this will be left locked...
+    // Should I set up the heap before interrupts? or just avoid printing until both...?
+    // or maybe force unlock if there's an interrupt?
+    // or store the hart in the lock, and unlock if that hart was interrupted??
+    // or just have a constant-sized buffer?
+    // or create a "locked writer"?
     UART.lock().write_fmt(args).unwrap();
 }

@@ -1,5 +1,5 @@
 use crate::{
-    arch::{csr, instructions, interrupts, wait}, main, println
+    arch::{asm, csr, interrupts, paging, wait}, main, println
 };
 
 #[no_mangle]
@@ -10,8 +10,8 @@ unsafe extern "C" fn _start() -> ! {
         // set up gp & sp
         ".option push",
         ".option norelax",
-        "la gp, global_pointer",
-        "la sp, stack_top",
+        "la gp, _global_pointer",
+        "la sp, _stack_end",
         ".option pop",
         // set up stack for each hart
         "csrr t0, mhartid",
@@ -26,20 +26,17 @@ unsafe extern "C" fn _start() -> ! {
 }
 
 pub fn entry() -> ! {
-    let dt_addr = instructions::reg!("a1");
+    let dt_addr = asm::reg!("a1") as usize;
     let hart = csr::hartid::read();
     println!("yo from hart {hart}");
     if hart != 0 {
         wait();
     }
     interrupts::init();
+    paging::init(dt_addr);
     println!(
         "machine trap vector base address: 0x{:x}",
         csr::mtvec::read()
-    );
-    println!(
-        "physical address bits: {}",
-        csr::satp::read()
     );
     main(dt_addr)
 }

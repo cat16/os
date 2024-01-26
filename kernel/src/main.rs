@@ -12,7 +12,7 @@ pub mod fdt;
 pub mod log;
 pub mod qemu;
 
-pub fn main(dt_addr: u64) -> ! {
+pub fn main(dt_addr: usize) -> ! {
     println!("we out here vibin");
     allocator::init_heap();
     let fdt = fdt::FDT::new(dt_addr);
