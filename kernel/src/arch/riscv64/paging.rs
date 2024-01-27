@@ -2,7 +2,7 @@
 // following for now bc don't wanna learn x86_64 :)
 
 use crate::{
-    arch::csr::{self, satp}, fdt::print_fdt, println
+    arch::{csr::{self, satp}, wait}, fdt::print_mem_layout, println
 };
 
 use super::asm::linker_static;
@@ -19,7 +19,7 @@ pub struct Table {
 pub fn init(fdt: usize) {
     unsafe {
         println!("heap start: 0x{:x}", HEAP_START);
-        print_fdt(fdt);
+        print_mem_layout(fdt);
         let table_start = HEAP_START as *mut Table;
         csr::satp::write(satp::Satp {
             mode: satp::Mode::Sv39,

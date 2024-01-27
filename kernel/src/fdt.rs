@@ -1,12 +1,10 @@
 // NOTE: basically none of this is safe rn, ideally it's eventually made safe / able to recover
 
 use crate::{print, println};
-use alloc::vec;
-use core::mem::{size_of, transmute};
-
-pub struct FDT {
-    pub header: Header,
-}
+use core::{
+    mem::{size_of, transmute},
+    slice,
+};
 
 const MAGIC: u32 = 0xd00dfeed;
 
@@ -21,8 +19,8 @@ enum Token {
 }
 const TOKEN_SIZE: usize = size_of::<Token>();
 impl Token {
-    pub fn from_addr(addr: usize) -> Self {
-        unsafe { transmute(from_be_32::<TOKEN_SIZE>(addr)) }
+    pub fn from_bytes(data: &[u8]) -> Self {
+        unsafe { transmute(be_32::<TOKEN_SIZE>(data)) }
     }
 }
 
@@ -56,26 +54,198 @@ pub struct Prop {
 }
 
 impl Prop {
-    pub fn from_addr(addr: usize) -> Self {
-        unsafe { transmute(from_be_32::<PROP_SIZE>(addr)) }
+    pub fn from_bytes(data: &[u8]) -> Self {
+        unsafe { transmute(be_32::<PROP_SIZE>(data)) }
     }
+}
+
+pub struct FDT {
+    pub header: Header,
 }
 
 impl FDT {
     pub fn new(addr: usize) -> Self {
         let header = Header::from_addr(addr);
-        if header.magic != MAGIC {
-            panic!("FDT magic incorrect");
-        }
-        if header.version != 17 {
-            panic!("FDT version not implemented {}", header.version);
-        }
-        let dt_structs = addr + header.off_dt_struct as usize;
-        let first_node: Token = Token::from_addr(dt_structs);
-        println!("{first_node:?}");
-        let a = vec![1, 2];
-        println!("arst{a:?}");
         Self { header }
+    }
+}
+
+pub struct RawFDT {
+    pub header: Header,
+    pub nodes: &'static [u8],
+    pub strings: &'static [u8],
+}
+
+impl RawFDT {
+    pub fn new(addr: usize) -> Self {
+        let header = Header::from_addr(addr);
+        let data = unsafe { slice::from_raw_parts(addr as *mut u8, header.totalsize as usize) };
+        Self {
+            header,
+            nodes: &data[header.off_dt_struct as usize..],
+            strings: &data[header.off_dt_strings as usize..],
+        }
+    }
+    pub fn print_all(&self) {
+        let mut pos = self.nodes;
+        loop {
+            let token: Token = Token::from_bytes(pos);
+            pos = &pos[4..];
+            if let Token::End = token {
+                break;
+            }
+            if let Token::EndNode = token {
+                continue;
+            }
+            print!("name: ");
+            'outer: loop {
+                let bytes = &pos[..4];
+                pos = &pos[4..];
+                for byte in bytes {
+                    if *byte == 0 {
+                        break 'outer;
+                    }
+                    let c = *byte as char;
+                    print!("{}", c);
+                }
+            }
+            println!();
+            let node = RawNode {
+                data: pos,
+                strings: self.strings,
+            };
+            pos = node.print_props();
+        }
+    }
+
+    pub fn find_node(&self, str: &str) -> Option<RawNode> {
+        let mut pos = self.nodes;
+        loop {
+            let token: Token = Token::from_bytes(pos);
+            pos = &pos[4..];
+            if let Token::End = token {
+                break None;
+            }
+            if let Token::EndNode = token {
+                continue;
+            }
+            let mut i = 0;
+            let check = str.as_bytes();
+            let mut failed = false;
+            'outer: loop {
+                let bytes = &pos[..4];
+                pos = &pos[4..];
+                for byte in bytes {
+                    if *byte == 0 {
+                        break 'outer;
+                    }
+                    if i < check.len() && check[i] != *byte {
+                        failed = true;
+                    }
+                    i += 1;
+                }
+            }
+            let node = RawNode {
+                data: pos,
+                strings: self.strings,
+            };
+            if !failed && i >= check.len() {
+                return Some(node);
+            }
+            pos = node.pass_props();
+        }
+    }
+}
+
+pub struct RawNode {
+    pub strings: &'static [u8],
+    pub data: &'static [u8],
+}
+
+impl RawNode {
+    pub fn get_prop(&self, str: &str) -> Option<&'static [u8]> {
+        let mut pos = self.data;
+        loop {
+            let token: Token = Token::from_bytes(pos);
+            let Token::Prop = token else {
+                break None;
+            };
+            pos = &pos[4..];
+            let prop: Prop = Prop::from_bytes(pos);
+            let name_bytes = &self.strings[prop.nameoff as usize..];
+            let mut i = 0;
+            let mut failed = false;
+            let check = str.as_bytes();
+            for byte in name_bytes {
+                if *byte == 0 {
+                    break;
+                }
+                if i < check.len() && check[i] != *byte {
+                    failed = true;
+                }
+                i += 1;
+            }
+            pos = &pos[PROP_SIZE..];
+            if !failed && i >= check.len() {
+                return Some(&pos[..prop.len as usize]);
+            }
+            let len = (prop.len as usize + (TOKEN_SIZE - 1)) & !(TOKEN_SIZE - 1);
+            pos = &pos[len..];
+        }
+    }
+    pub fn print_props(&self) -> &'static [u8] {
+        let mut pos = self.data;
+        loop {
+            let token: Token = Token::from_bytes(pos);
+            let Token::Prop = token else {
+                break;
+            };
+            pos = &pos[4..];
+            let prop: Prop = Prop::from_bytes(pos);
+            let name_bytes = &self.strings[prop.nameoff as usize..];
+            print!("    ");
+            for byte in name_bytes {
+                if *byte == 0 {
+                    break;
+                }
+                let c = *byte as char;
+                print!("{}", c);
+            }
+            println!(": {prop:?}");
+            let aligned_len = (prop.len as usize + (TOKEN_SIZE - 1)) & !(TOKEN_SIZE - 1);
+            pos = &pos[PROP_SIZE + aligned_len..];
+        }
+        pos
+    }
+    pub fn pass_props(&self) -> &'static [u8] {
+        let mut pos = self.data;
+        loop {
+            let token: Token = Token::from_bytes(pos);
+            let Token::Prop = token else {
+                break;
+            };
+            pos = &pos[4..];
+            let prop: Prop = Prop::from_bytes(pos);
+            let aligned_len = (prop.len as usize + (TOKEN_SIZE - 1)) & !(TOKEN_SIZE - 1);
+            pos = &pos[PROP_SIZE + aligned_len..];
+        }
+        pos
+    }
+}
+
+pub fn print_mem_layout(addr: usize) {
+    let fdt = RawFDT::new(addr);
+    fdt.print_all();
+    if let Some(node) = fdt.find_node("memory") {
+        println!("mem:");
+        let data = node.get_prop("reg");
+        if let Some(data) = data {
+            for d in data.chunks(8) {
+                let mut arr: [u8; 8] = d.try_into().unwrap();
+                let num: u64 = unsafe { transmute(arr) };
+                println!("0x{:x}", num.to_be());
+            }
+        }
     }
 }
 
@@ -87,57 +257,11 @@ pub unsafe fn from_be_32<const S: usize>(addr: usize) -> [u8; S] {
     data
 }
 
-pub fn print_fdt(addr: usize) {
-    let header = Header::from_addr(addr);
-    let str_addr = header.off_dt_strings as usize + addr;
-    let mut addr = header.off_dt_struct as usize + addr;
-    loop {
-        let token: Token = Token::from_addr(addr);
-        addr += TOKEN_SIZE;
-        if let Token::End = token {
-            break;
-        }
-        if let Token::EndNode = token {
-            continue;
-        }
-        print!("name: ");
-        'outer: loop {
-            let bytes = unsafe { *(addr as *mut [u8; TOKEN_SIZE]) };
-            addr += TOKEN_SIZE;
-            for byte in bytes {
-                if byte == 0 {
-                    break 'outer;
-                }
-                let c = byte as char;
-                print!("{}", c);
-            }
-        }
-        println!();
-        print_props(str_addr, &mut addr)
+pub unsafe fn be_32<const S: usize>(data: &[u8]) -> [u8; S] {
+    let data: &[u8; S] = data[..S].try_into().unwrap();
+    let mut data = (*data).clone();
+    for slice in data.chunks_mut(4) {
+        slice.reverse();
     }
-}
-
-pub fn print_props(str_addr: usize, addr: &mut usize) {
-    loop {
-        let token: Token = Token::from_addr(*addr);
-        let Token::Prop = token else {
-            break;
-        };
-        *addr += TOKEN_SIZE;
-        let prop: Prop = Prop::from_addr(*addr);
-        let mut name_addr = str_addr + prop.nameoff as usize;
-        print!("    ");
-        loop {
-            let byte = unsafe { *(name_addr as *mut u8) };
-            name_addr += 1;
-            if byte == 0 {
-                break;
-            }
-            let c = byte as char;
-            print!("{}", c);
-        }
-        println!(": {prop:?}");
-        let aligned_len = (prop.len as usize + (TOKEN_SIZE - 1)) & !(TOKEN_SIZE - 1);
-        *addr += PROP_SIZE + aligned_len;
-    }
+    data
 }
