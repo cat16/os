@@ -7,3 +7,5 @@ or lose motivation :sunglasses:
 
 either way I at least want to learn OS / cpu arch fundamentals through this
 
+edit: learning from [this](https://osblog.stephenmarz.com/index.html) now bc don't wanna learn x86 & already know riscv basics
+

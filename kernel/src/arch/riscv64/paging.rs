@@ -1,8 +1,7 @@
-// stolen from https://osblog.stephenmarz.com/index.html chapter 3 which I'm prolly gonna start
-// following for now bc don't wanna learn x86_64 :)
-
 use crate::{
-    arch::{csr::{self, satp}, wait}, fdt::print_mem_layout, println
+    arch::csr::{self, satp},
+    fdt::print_mem_layout,
+    println,
 };
 
 use super::asm::linker_static;
