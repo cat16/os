@@ -27,3 +27,7 @@ pub(crate) use linker_static;
 pub fn wfi() {
     unsafe { asm!("wfi") }
 }
+
+pub unsafe fn mret() {
+    asm!("mret");
+}

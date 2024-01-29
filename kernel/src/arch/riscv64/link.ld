@@ -22,7 +22,6 @@ SECTIONS
     . += 0x8000;
     PROVIDE(_stack_end = .);
     . = ALIGN(4096); /* 2^12 */
-    PROVIDE(_heap_start = .);
-    . += 0x20000000;
+    PROVIDE(_end = .);
 }
 

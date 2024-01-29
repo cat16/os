@@ -28,7 +28,7 @@ fn run_qemu(target: &Target, gdb: Option<Option<u16>>) {
     let mut qemu = target.qemu();
     qemu.args(["-d", "guest_errors"]);
     qemu.args(["-m", "4G"]);
-    // qemu.args(["-monitor", "telnet:127.0.0.1:1235,server,nowait"]);
+    qemu.args(["-monitor", "telnet:127.0.0.1:1235,server,nowait"]);
     if let Some(port) = gdb {
         let port = port.unwrap_or(1234);
         qemu.arg("-S");

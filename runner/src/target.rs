@@ -40,6 +40,7 @@ impl Target {
                 let mut cmd = Command::new("qemu-system-riscv64");
                 cmd.arg("-nographic");
                 cmd.arg("-semihosting");
+                cmd.args(["-cpu", "rv64"]);
                 cmd.args(["-machine", "virt"]);
                 cmd.args(["-bios", "none"]);
                 cmd.args(["-smp", "4"]);

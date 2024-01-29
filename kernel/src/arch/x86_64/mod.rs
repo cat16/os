@@ -1,5 +1,3 @@
-use crate::main;
-
 pub mod framebuffer;
 pub mod gdt;
 pub mod interrupts;
@@ -13,7 +11,9 @@ fn _start(boot_info: &'static mut bootloader_api::BootInfo) -> ! {
     if let Some(framebuffer) = boot_info.framebuffer.as_mut() {
         framebuffer::draw_test(framebuffer);
     }
-    main(0);
+    // not working on this anymore for now
+    // main(null_mut());
+    loop {}
 }
 
 pub fn hlt_loop() -> ! {

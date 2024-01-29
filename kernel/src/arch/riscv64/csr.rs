@@ -1,12 +1,10 @@
 macro_rules! csrr {
     ($name:expr) => {{
         let mut out: u64;
-        unsafe {
-            core::arch::asm!(
-                concat!("csrr {out}, ", $name),
-                out = out(reg) out,
-            );
-        }
+        core::arch::asm!(
+            concat!("csrr {out}, ", $name),
+            out = out(reg) out,
+        );
         out
     }};
 }
@@ -35,15 +33,9 @@ macro_rules! csrw {
     };
 }
 
-macro_rules! bits {
-    ($name:ident[$high:expr,$low:expr]) => {{
-        ($name & ((2u64.pow($high - $low + 1) - 1) << $low)) >> $low
-    }};
-}
-
 pub mod hartid {
     pub fn read() -> u64 {
-        csrr!("mhartid")
+        unsafe { csrr!("mhartid") }
     }
 }
 
@@ -56,20 +48,60 @@ pub mod mtvec {
     }
     pub(crate) use init;
     pub fn read() -> u64 {
-        csrr!("mtvec")
+        unsafe { csrr!("mtvec") }
     }
 }
 
 pub mod mcause {
-    pub fn read() -> u64 {
-        csrr!("mcause")
+    use core::mem::transmute;
+
+    #[derive(Debug)]
+    pub enum MCause {
+        // interrupt = 1
+        SupervisorSoftwareInterrupt = (1 << 63) | 1,
+        VirtualSupervisorSoftwareInterrupt = (1 << 63) | 2,
+        MachineSoftwareInterrupt = (1 << 63) | 3,
+
+        SupervisorTimerInterrupt = (1 << 63) | 5,
+        VirtualSupervisorTimerInterrupt = (1 << 63) | 6,
+        MachineTimerInterrupt = (1 << 63) | 7,
+
+        SupervisorExternalInterrupt = (1 << 63) | 9,
+        VirtualSupervisorExternalInterrupt = (1 << 63) | 10,
+        MachineExternalInterrupt = (1 << 63) | 11,
+
+        SupervisorGuestExternalInterrupt = (1 << 63) | 12,
+
+        // interrupt = 0
+        InstructionAddrMisaligned = 0,
+        InstructionAccessFault = 1,
+        IllegalInstruction = 2,
+        Breakpoint = 3,
+        LoadAddressMisaligned = 4,
+        LoadAccessFault = 5,
+        StoreAMOAddressMisaligned = 6,
+        StoreAMOAccessFault = 7,
+        EnvCallUorVU = 8,
+        EnvCallHS = 9,
+        EnvCallVS = 10,
+        EnvCallM = 11,
+        InstructionPageFault = 12,
+        LoadPageFault = 13,
+        StoreAMOPageFault = 15,
+        InstructionGuestPageFault = 20,
+        LoadGuestPageFault = 21,
+        VirtualInstruction = 22,
+        StoreAMOGuestPageFault = 23,
+    }
+    pub fn read() -> MCause {
+        unsafe { transmute(csrr!("mcause")) }
     }
 }
 
 pub mod satp {
     use core::mem::transmute;
 
-    use crate::arch::paging::Table;
+    use crate::{arch::paging::Table, util::bits::get_bits};
 
     #[derive(Debug)]
     #[repr(u64)]
@@ -98,14 +130,23 @@ pub mod satp {
         pub ppn: *mut Table,
     }
     pub fn read() -> Satp {
-        let satp = csrr!("satp");
-        let mode = unsafe { transmute(bits!(satp[63,60])) };
-        let asid = bits!(satp[59, 44]);
-        let ppn = unsafe { transmute(bits!(satp[43, 0]) << 12) };
+        let satp = unsafe { csrr!("satp") };
+        let mode = unsafe { transmute(get_bits!(satp[63,60])) };
+        let asid = get_bits!(satp[59, 44]);
+        let ppn = unsafe { transmute(get_bits!(satp[43, 0]) << 12) };
         Satp { mode, asid, ppn }
     }
     pub fn write(satp: Satp) {
         let val = (satp.mode as u64) << 60 | satp.asid << 44 | (satp.ppn as u64 >> 12);
         csrw!("satp", val);
+    }
+}
+
+pub mod mstatus {
+    pub fn read() -> u64 {
+        unsafe { csrr!("mstatus") }
+    }
+    pub fn write(val: u64) {
+        csrw!("mstatus", val);
     }
 }
