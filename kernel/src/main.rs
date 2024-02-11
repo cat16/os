@@ -21,6 +21,10 @@ pub fn main(dt_addr: *mut FDT) -> ! {
     let mut test = alloc::vec![1, 2, 3];
     test.push(3);
     println!("{:?}", test);
+    unsafe {
+        let x = *(0x3000 as *const u8);
+        println!("{}", x);
+    }
     // for _ in 0..40000000 {}
     // let x = unsafe { *(0x10000000000 as *mut u8) };
     // println!("we got {x}");

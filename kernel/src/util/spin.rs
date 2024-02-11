@@ -5,15 +5,15 @@ pub struct SpinLock {
 }
 
 impl SpinLock {
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self {
             locked: AtomicBool::new(false),
         }
     }
-    pub fn lock(&mut self) {
+    pub fn lock(&self) {
         while self.locked.swap(true, Ordering::Acquire) {}
     }
-    pub fn unlock(&mut self) {
+    pub fn unlock(&self) {
         self.locked.store(false, Ordering::Release)
     }
 }

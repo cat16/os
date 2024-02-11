@@ -13,6 +13,8 @@ static mut DT_ADDR: *mut FDT = null_mut();
 #[naked]
 unsafe extern "C" fn _start() -> ! {
     core::arch::asm!(
+        // disable interrupts
+        "csrw mie, zero",
         // set up gp & sp
         ".option push",
         ".option norelax",

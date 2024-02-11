@@ -1,6 +1,5 @@
 use core::fmt::Arguments;
 
-use spin::Mutex;
 use uart_16550::SerialPort;
 use x86_64::instructions::{interrupts, port::Port};
 

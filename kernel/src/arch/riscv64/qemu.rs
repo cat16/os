@@ -1,6 +1,6 @@
 use core::fmt::{self, Write};
 
-use spin::Mutex;
+use crate::util::mutex::Mutex;
 
 // --machine sifive_u
 // const UART_BASE: u32 = 0x10010000;
