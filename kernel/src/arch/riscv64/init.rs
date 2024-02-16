@@ -1,4 +1,4 @@
-use core::ptr::null_mut;
+use core::{arch::asm, ops::Range};
 
 use crate::{
     arch::{asm, csr, interrupts, paging, wait},
@@ -6,13 +6,11 @@ use crate::{
     main,
 };
 
-static mut DT_ADDR: *mut FDT = null_mut();
-
 #[no_mangle]
 #[link_section = ".text.init"]
 #[naked]
 unsafe extern "C" fn _start() -> ! {
-    core::arch::asm!(
+    asm!(
         // disable interrupts
         "csrw mie, zero",
         // set up gp & sp
@@ -32,10 +30,15 @@ unsafe extern "C" fn _start() -> ! {
         "csrw mstatus, t0",
         "la t0, {init}",
         "csrw mepc, t0",
-        "la ra, 2f",
         "mret",
 
-        "2:",
+        init = sym init,
+        options(noreturn)
+    );
+}
+
+pub unsafe fn to_supervisor() {
+    asm!(
         "li t0, (1 << 8) | (1 << 5)",
         "csrw sstatus, t0",
         "li t0, (7 << 0) | (1 << 3)",
@@ -45,18 +48,14 @@ unsafe extern "C" fn _start() -> ! {
         "li	t2, (1 << 1) | (1 << 5) | (1 << 9)",
         "csrw mideleg, t2",
         "csrw sie, t2",
-        "la t0, {start}",
+        "mv t0, ra",
         "csrw sepc, t0",
         "sfence.vma",
         "sret",
-
-        start = sym start,
-        init = sym init,
-        options(noreturn)
     );
 }
 
-pub fn init() {
+pub unsafe fn init() -> ! {
     let dt_addr = asm::reg!("a1") as *mut u8;
     let hart = csr::hartid::read();
     if hart != 0 {
@@ -64,9 +63,12 @@ pub fn init() {
     }
     interrupts::init();
     let fdt = FDT::from_addr(dt_addr);
-    paging::init(fdt);
-}
-
-pub fn start() {
-    main(unsafe { DT_ADDR });
+    let raw_mem_range = fdt.mem_range();
+    let heap_start = paging::init(raw_mem_range.end());
+    let heap_mem = Range {
+        start: heap_start,
+        end: raw_mem_range.end(),
+    };
+    to_supervisor();
+    main(heap_mem, fdt);
 }

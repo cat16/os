@@ -1,14 +1,11 @@
-// NOTE: basically none of this is safe rn, ideally it's eventually made safe / able to recover
-// also, I do a ton of slice.try_into and then transmuting which I'm pretty sure is bad and
-// I really should be transmuting into references but I cannot be bothered rn
+// garbage .1% finished FDT implementation
 
 use crate::{
     println,
     util::bits::{u32_from_bytes, Be},
 };
 use core::{
-    mem::{size_of, transmute},
-    slice,
+    fmt::Debug, mem::{size_of, transmute}, ops::Range, slice
 };
 
 const MAGIC: u32 = 0xd00dfeed;
@@ -161,12 +158,12 @@ impl FDT {
             }
         }
     }
-    pub fn mem_range(&self) -> MemRange {
+    pub fn mem_range(&self) -> FDTMemRange {
         if let Some(node) = self.into_iter().find(|n| n.name.starts_with("memory@")) {
             let prop = node.find_prop("reg");
             if let Some(prop) = prop {
-                for d in prop.data.chunks(size_of::<MemRange>()) {
-                    let d: [u8; size_of::<MemRange>()] = d.try_into().unwrap();
+                for d in prop.data.chunks(size_of::<FDTMemRange>()) {
+                    let d: [u8; size_of::<FDTMemRange>()] = d.try_into().unwrap();
                     // just return first one for now
                     return unsafe { transmute(d) };
                 }
@@ -177,9 +174,36 @@ impl FDT {
 }
 
 #[repr(C)]
-pub struct MemRange {
-    pub start: Be<usize>,
+pub struct FDTMemRange {
+    pub start: Be<*mut u8>,
     pub len: Be<usize>,
+}
+
+impl FDTMemRange {
+    pub fn start(&self) -> *mut u8 {
+        self.start.get()
+    }
+    pub fn len(&self) -> usize {
+        self.len.get()
+    }
+    pub fn end(&self) -> *mut u8 {
+        unsafe { self.start().add(self.len.get()) }
+    }
+}
+
+impl Debug for FDTMemRange {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(f, "{:?}..{:?}", self.start(), self.end())
+    }
+}
+
+impl Into<Range<*mut u8>> for FDTMemRange {
+    fn into(self) -> Range<*mut u8> {
+        Range {
+            start: self.start(),
+            end: self.end(),
+        }
+    }
 }
 
 pub struct Node {

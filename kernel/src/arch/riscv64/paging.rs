@@ -1,19 +1,14 @@
-use super::asm::linker_static;
 use crate::{
     arch::csr::{self, satp},
-    fdt::FDT,
-    println,
     util::bits::get_bits,
 };
-use core::{ptr::null_mut, slice};
+use core::slice;
 
-linker_static!(END: usize, ".dword _end");
+use super::mem::PROGRAM_END;
+
 const PAGE_SIZE: usize = 4096;
 const TABLE_LEN: usize = 2usize.pow(9);
 const TABLE_SIZE: usize = core::mem::size_of::<Table>();
-
-static mut FIRST_FREE: *mut u8 = null_mut();
-static mut MEM_END: *mut u8 = null_mut();
 
 #[repr(C)]
 pub struct Entry(usize);
@@ -53,19 +48,12 @@ pub struct Table {
     pub entries: [Entry; TABLE_LEN],
 }
 
-pub fn init(fdt: FDT) {
+pub fn init(mem_end: *mut u8) -> *mut u8 {
     unsafe {
-        println!("program end: 0x{:x}", END);
-        let range = fdt.mem_range();
-        let start = range.start.get();
-        let len = range.len.get();
-        let end = start + len;
-        MEM_END = end as *mut u8;
-        println!("memory range: 0x{:x} -> 0x{:x}", start, end);
-        let total_pages = end / 4096;
+        let total_pages = mem_end as usize / 4096;
         let lvl1_count = (total_pages.saturating_sub(1)) / TABLE_LEN + 1;
         let lvl2_count = (lvl1_count.saturating_sub(1)) / TABLE_LEN + 1;
-        let lvl2 = &mut *(END as *mut Table);
+        let lvl2 = &mut *(PROGRAM_END as *mut Table);
         let lvl1_arr = slice::from_raw_parts_mut((lvl2 as *mut Table).add(TABLE_SIZE), lvl2_count);
         let lvl0_arr = slice::from_raw_parts_mut(
             lvl1_arr.as_ptr().add(lvl1_arr.len()) as *mut Table,
@@ -106,10 +94,8 @@ pub fn init(fdt: FDT) {
             asid: 0,
             ppn: lvl2,
         });
-        let satp = csr::satp::read();
-        println!("satp: {satp:?}");
-        let end = lvl0_arr.as_ptr().add(lvl0_arr.len()) as *mut u8;
-        FIRST_FREE = end;
+        let table_end = lvl0_arr.as_ptr().add(lvl0_arr.len()) as *mut u8;
+        table_end
     }
 }
 
@@ -127,12 +113,4 @@ pub fn virt_to_physical(table: &Table, addr: usize) -> usize {
         let addr = base + offset;
         addr
     }
-}
-
-pub fn first_free() -> *mut u8 {
-    unsafe { FIRST_FREE }
-}
-
-pub fn free_len() -> usize {
-    unsafe { MEM_END.offset_from(FIRST_FREE) as usize }
 }

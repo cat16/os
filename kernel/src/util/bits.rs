@@ -1,4 +1,7 @@
-use core::mem::transmute;
+use core::{
+    fmt::{Debug, Display},
+    mem::transmute,
+};
 
 macro_rules! get_bits {
     ($name:ident[$high:expr,$low:expr]) => {{
@@ -35,6 +38,24 @@ impl BeRep for u64 {
 impl BeRep for usize {
     fn _from_be(&self) -> Self {
         self.to_be()
+    }
+}
+
+impl BeRep for *mut u8 {
+    fn _from_be(&self) -> Self {
+        (*self as usize).to_be() as *mut u8
+    }
+}
+
+impl<T: Debug + BeRep> Debug for Be<T> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(f, "{:?}", self.get())
+    }
+}
+
+impl<T: Display + BeRep> Display for Be<T> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(f, "{}", self.get())
     }
 }
 
