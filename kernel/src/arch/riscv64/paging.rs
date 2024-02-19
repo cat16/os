@@ -1,6 +1,6 @@
 use crate::{
     arch::csr::{self, satp},
-    util::bits::get_bits,
+    util::bits::bits,
 };
 use core::slice;
 
@@ -36,7 +36,7 @@ impl Entry {
     }
     pub fn get_addr(&self) -> usize {
         let val = self.0;
-        get_bits!(val[53,10]) << 12
+        bits!(val;10,53) << 12
     }
     pub fn clear(&mut self) {
         self.0 = 0;
@@ -100,10 +100,10 @@ pub fn init(mem_end: *mut u8) -> *mut u8 {
 }
 
 pub fn virt_to_physical(table: &Table, addr: usize) -> usize {
-    let ppn2 = get_bits!(addr[38,30]);
-    let ppn1 = get_bits!(addr[29,21]);
-    let ppn0 = get_bits!(addr[20,12]);
-    let offset = get_bits!(addr[11,0]);
+    let ppn2 = bits!(addr;30,38);
+    let ppn1 = bits!(addr;21,29);
+    let ppn0 = bits!(addr;12,20);
+    let offset = bits!(addr;0,11);
     // let satp = csr::satp::read();
     unsafe {
         let lvl2 = table as *const Table;

@@ -101,7 +101,7 @@ pub mod mcause {
 pub mod satp {
     use core::mem::transmute;
 
-    use crate::{arch::paging::Table, util::bits::get_bits};
+    use crate::{arch::paging::Table, util::bits::bits};
 
     #[derive(Debug)]
     #[repr(u64)]
@@ -131,9 +131,9 @@ pub mod satp {
     }
     pub fn read() -> Satp {
         let satp = unsafe { csrr!("satp") };
-        let mode = unsafe { transmute(get_bits!(satp[63,60])) };
-        let asid = get_bits!(satp[59, 44]);
-        let ppn = unsafe { transmute(get_bits!(satp[43, 0]) << 12) };
+        let mode = unsafe { transmute(bits!(satp;60,63)) };
+        let asid = bits!(satp;44,59);
+        let ppn = unsafe { transmute(bits!(satp;0,43) << 12) };
         Satp { mode, asid, ppn }
     }
     pub fn write(satp: Satp) {

@@ -3,12 +3,12 @@ use core::{
     mem::transmute,
 };
 
-macro_rules! get_bits {
-    ($name:ident[$high:expr,$low:expr]) => {{
+macro_rules! bits {
+    ($name:expr;$low:expr,$high:expr) => {{
         ($name & ((($name - $name + 2).pow($high - $low + 1) - 1) << $low)) >> $low
     }};
 }
-pub(crate) use get_bits;
+pub(crate) use bits;
 
 pub trait BeRep {
     fn _from_be(&self) -> Self;
