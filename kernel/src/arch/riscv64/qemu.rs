@@ -1,6 +1,7 @@
 use core::fmt::{self, Write};
 
 use crate::util::mutex::Mutex;
+use core::arch::asm;
 
 // --machine sifive_u
 // const UART_BASE: u32 = 0x10010000;
@@ -28,22 +29,27 @@ impl fmt::Write for Uart {
     }
 }
 
-pub fn exit() -> ! {
+pub fn exit(code: usize) -> ! {
+    let data = [0x20026, code];
     unsafe {
-        core::arch::asm!(
-            "li t0, 0x20026",
-            "sw t0, 0(sp)",
-            "move a1, sp",
-            "li a0, 0x18",
-            ".balign 16",
-            ".option push",
-            ".option norvc",
-            "slli zero, zero, 0x1f",
-            "ebreak",
-            "srai zero, zero, 0x7",
-            options(noreturn)
-        );
+        semihost(0x18, data.as_ptr() as *const u8);
     }
+    super::wait()
+}
+
+unsafe fn semihost(call: usize, data: *const u8) {
+    asm!(
+        "mv a0, {call}",
+        "mv a1, {data}",
+        ".balign 16",
+        ".option push",
+        ".option norvc",
+        "slli zero, zero, 0x1f",
+        "ebreak",
+        "srai zero, zero, 0x7",
+        call = in(reg) call,
+        data = in(reg) data
+    )
 }
 
 pub fn _print(args: core::fmt::Arguments<'_>) {

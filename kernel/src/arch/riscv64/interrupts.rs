@@ -8,5 +8,5 @@ pub fn init() {
 pub fn stuff() -> ! {
     let mcause = csr::mcause::read();
     crate::println!("interrupt triggered: {mcause:?}");
-    super::qemu::exit();
+    super::qemu::exit(1);
 }

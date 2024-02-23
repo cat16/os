@@ -2,8 +2,8 @@ use clap::Parser;
 use std::process::{self, Command, Stdio};
 use target::Target;
 
-mod boot;
-mod target;
+pub mod boot;
+pub mod target;
 
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
@@ -20,7 +20,7 @@ fn main() {
     let args = Args::parse();
     let target = args.target.unwrap_or(Target::default());
     std::env::set_current_dir("../kernel").expect("uh oh");
-    build(&target);
+    build(&target, false);
     run_qemu(&target, args.gdb);
 }
 
@@ -51,10 +51,14 @@ fn run_qemu(target: &Target, gdb: Option<Option<u16>>) {
     }
 }
 
-fn build(target: &Target) {
+fn build(target: &Target, test: bool) {
     let mut cargo = Command::new("cargo");
-    cargo.arg("build");
-    cargo.args(["--package", "kernel"]);
+    if test {
+        cargo.arg("test");
+        cargo.arg("--no-run");
+    } else {
+        cargo.arg("build");
+    }
     cargo.args(["--target", target.rust_target()]);
     let status = cargo.status().expect("uh oh");
     if !status.success() {
@@ -62,5 +66,18 @@ fn build(target: &Target) {
     }
     if let Target::X86_64 { bootloader } = target {
         boot::build_bootloader_img(bootloader);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::{build, run_qemu, target::Target};
+
+    #[test]
+    fn default() {
+        std::env::set_current_dir("../kernel").expect("uh oh");
+        let target = Target::default();
+        build(&target, true);
+        run_qemu(&target, None);
     }
 }
