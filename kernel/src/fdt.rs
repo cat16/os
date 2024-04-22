@@ -2,13 +2,14 @@
 
 use crate::{
     println,
-    util::bits::{u32_from_bytes, Be},
+    util::{bits::{u32_from_bytes, Be}, lazy::LazyConst},
 };
 use core::{
     fmt::Debug, mem::{size_of, transmute}, ops::Range, slice
 };
 
 const MAGIC: u32 = 0xd00dfeed;
+pub static DT: LazyConst<FDT> = LazyConst::new();
 
 #[repr(u32)]
 #[derive(Clone, Copy, Debug)]

@@ -1,5 +1,7 @@
 use crate::{print, println, qemu};
 
+mod mem;
+
 // SURELY I will not have threading tests that cause problems
 // SURELY I don't need to pin the input to test_runner
 static mut TESTS: &[&dyn Testable] = &[];
@@ -51,19 +53,4 @@ pub fn test_panic(info: &core::panic::PanicInfo) -> ! {
     println!("\x1b[93m{}\x1b[0m", info);
     unsafe { FAILED += 1 };
     run_tests();
-}
-
-#[test_case]
-fn test1() {
-    assert_eq!(1, 1);
-}
-
-#[test_case]
-fn test2() {
-    assert_eq!(1, 0);
-}
-
-#[test_case]
-fn test3() {
-    assert_eq!(5, 4);
 }

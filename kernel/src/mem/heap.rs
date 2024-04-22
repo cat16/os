@@ -15,7 +15,7 @@ use crate::println;
 const ALIGN: usize = 0b1000;
 const ALIGN_MASK: usize = !(ALIGN - 1);
 
-struct BlockInfo(usize);
+pub struct BlockInfo(usize);
 
 impl BlockInfo {
     pub const fn new(prev_used: bool, size: usize) -> Self {
@@ -35,9 +35,9 @@ impl BlockInfo {
     }
 }
 
-type BlockPointer = *mut BlockInfo;
+pub type BlockPointer = *mut BlockInfo;
 
-struct FreeBlockInfo {
+pub struct FreeBlockInfo {
     info: BlockInfo,
     prev: FreePointer,
     next: FreePointer,
@@ -52,7 +52,7 @@ impl FreeBlockInfo {
     }
 }
 
-type FreePointer = *mut FreeBlockInfo;
+pub type FreePointer = *mut FreeBlockInfo;
 
 const FREE_SIZE: usize = size_of::<FreeBlockInfo>() + size_of::<FreePointer>();
 const PTR_SIZE: usize = size_of::<FreePointer>();
@@ -146,7 +146,7 @@ impl Heap {
         return null_mut();
     }
 
-    pub unsafe fn dealloc(&mut self, ptr: *mut u8, layout: core::alloc::Layout) {
+    pub unsafe fn dealloc(&mut self, ptr: *mut u8, _: core::alloc::Layout) {
         let used = ptr.byte_sub(USED_SIZE) as BlockPointer;
         let mut size = (*used).size();
         let old_size = size;
@@ -187,13 +187,13 @@ impl Heap {
         (*n_block).unset_prev_used();
     }
 
-    fn iter_free(&mut self) -> FreeBlockIter {
+    pub fn iter_free(&mut self) -> FreeBlockIter {
         FreeBlockIter {
             prev: &mut self.head,
             end: &mut self.head,
         }
     }
-    fn iter_block(&mut self) -> BlockIter {
+    pub fn iter_block(&mut self) -> BlockIter {
         BlockIter {
             cur: self.start as BlockPointer,
             end: self.end,
@@ -213,7 +213,11 @@ impl Heap {
                 if n_block as *mut u8 == self.end {
                     n_block = &mut self.head.info;
                 }
-                let used = if (*n_block).prev_used() {"used"} else {"free"};
+                let used = if (*n_block).prev_used() {
+                    "used"
+                } else {
+                    "free"
+                };
                 println!(" - {:?}: {}, size 0x{:x}", block, used, size);
             }
             println!();
@@ -228,7 +232,7 @@ unsafe fn create_free(addr: FreePointer, info: FreeBlockInfo) {
     *end = addr;
 }
 
-struct FreeBlockIter {
+pub struct FreeBlockIter {
     end: FreePointer,
     prev: FreePointer,
 }
@@ -245,7 +249,7 @@ impl Iterator for FreeBlockIter {
     }
 }
 
-struct BlockIter {
+pub struct BlockIter {
     end: *mut u8,
     cur: BlockPointer,
 }

@@ -1,16 +1,16 @@
+use super::heap::Heap;
+use crate::util::mutex::{Mutex, MutexGuard};
 use core::{alloc::GlobalAlloc, ops::Range};
 
-use crate::{heap::Heap, util::mutex::Mutex};
-
 #[global_allocator]
-pub static ALLOCATOR: LockedHeap = LockedHeap::empty();
+pub static ALLOCATOR: Allocator = Allocator::empty();
 
-pub struct LockedHeap(Mutex<Heap>);
+pub struct Allocator(Mutex<Heap>);
 
 // should look into why I need this, didn't see it in linked list alloc crate
-unsafe impl Sync for LockedHeap {}
+unsafe impl Sync for Allocator {}
 
-impl LockedHeap {
+impl Allocator {
     pub const fn empty() -> Self {
         Self(Mutex::new(Heap::empty()))
     }
@@ -20,9 +20,12 @@ impl LockedHeap {
     pub fn print(&self) {
         self.0.lock().print();
     }
+    pub fn heap(&self) -> MutexGuard<Heap> {
+        self.0.lock()
+    }
 }
 
-unsafe impl GlobalAlloc for LockedHeap {
+unsafe impl GlobalAlloc for Allocator {
     unsafe fn alloc(&self, layout: core::alloc::Layout) -> *mut u8 {
         self.0.lock().alloc(layout)
     }
