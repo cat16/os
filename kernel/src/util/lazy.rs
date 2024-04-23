@@ -1,40 +1,39 @@
-use core::{mem::zeroed, ops::Deref};
+use core::{mem::MaybeUninit, ops::Deref};
 
 pub struct LazyConst<T> {
-    #[cfg(not(debug_assertions))]
     value: T,
     #[cfg(debug_assertions)]
-    value: Option<T>,
+    state: u8,
 }
 
 impl<T> Deref for LazyConst<T> {
     type Target = T;
 
     fn deref(&self) -> &Self::Target {
-        #[cfg(not(debug_assertions))]
-        {
-            &self.value
-        }
         #[cfg(debug_assertions)]
-        {
-            self.value.as_ref().expect("Value was not assigned")
+        if self.state == 0 {
+            panic!("Lazy const for {} not assigned", core::any::type_name::<T>());
         }
+        &self.value
     }
 }
 
 impl<T> LazyConst<T> {
     pub const fn new() -> Self {
-        unsafe { Self { value: zeroed() } }
+        unsafe {
+            Self {
+                value: MaybeUninit::zeroed().assume_init(),
+                #[cfg(debug_assertions)]
+                state: 0,
+            }
+        }
     }
 
-    pub fn init(&self, value: T) {
-        #[cfg(not(debug_assertions))]
-        unsafe {
-            as_mut(self).value = value
-        }
+    pub unsafe fn init(&self, value: T) {
+        as_mut(self).value = value;
         #[cfg(debug_assertions)]
-        unsafe {
-            as_mut(self).value = Some(value)
+        {
+            as_mut(self).state = 1;
         }
     }
 }

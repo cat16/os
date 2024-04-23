@@ -14,8 +14,11 @@ impl Allocator {
     pub const fn empty() -> Self {
         Self(Mutex::new(Heap::empty()))
     }
-    pub unsafe fn init(&self, range: Range<*mut u8>) {
+    pub unsafe fn init(&self, range: &Range<*mut u8>) {
         self.0.lock().init(range);
+    }
+    pub unsafe fn reset(&self, range: &Range<*mut u8>) {
+        self.0.lock().reset(range);
     }
     pub fn print(&self) {
         self.0.lock().print();

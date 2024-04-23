@@ -9,13 +9,12 @@
 
 use crate::mem::alloc::ALLOCATOR;
 use core::ops::Range;
-use fdt::{DT, FDT};
+use dev::fdt::FDT;
 
 extern crate alloc;
 
 pub mod arch;
 pub mod dev;
-pub mod fdt;
 pub mod log;
 pub mod mem;
 pub mod qemu;
@@ -23,20 +22,31 @@ pub mod qemu;
 mod test;
 pub mod util;
 
-pub fn start(heap_mem: Range<*mut u8>, fdt: FDT) -> ! {
-    DT.init(fdt);
-    unsafe {
-        ALLOCATOR.init(heap_mem);
-    }
+pub struct StartInfo {
+    mem_range: Range<*mut u8>,
+    dt: FDT
+}
+
+pub fn start(info: StartInfo) -> ! {
     #[cfg(test)]
-    test_main();
+    {
+        // un... un bro momento..
+        test::init(info);
+        test_main();
+    }
     #[cfg(not(test))]
-    main();
+    main(info);
     qemu::exit(0)
 }
 
-pub fn main() {
+pub fn main(info: StartInfo) {
     println!("we out here vibin");
+    unsafe {
+        ALLOCATOR.init(&info.mem_range);
+    }
+    for dev in info.dt.into_iter() {
+        println!("{:?}", dev);
+    }
 }
 
 #[panic_handler]

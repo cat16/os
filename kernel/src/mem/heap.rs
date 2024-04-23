@@ -15,11 +15,12 @@ use crate::println;
 const ALIGN: usize = 0b1000;
 const ALIGN_MASK: usize = !(ALIGN - 1);
 
+#[repr(C)]
 pub struct BlockInfo(usize);
 
 impl BlockInfo {
-    pub const fn new(prev_used: bool, size: usize) -> Self {
-        Self(prev_used as usize | size)
+    pub const fn new(size: usize) -> Self {
+        Self(true as usize | size)
     }
     pub fn prev_used(&self) -> bool {
         self.0 & 1 == 1
@@ -37,6 +38,7 @@ impl BlockInfo {
 
 pub type BlockPointer = *mut BlockInfo;
 
+#[repr(C)]
 pub struct FreeBlockInfo {
     info: BlockInfo,
     prev: FreePointer,
@@ -62,6 +64,8 @@ pub struct Heap {
     head: FreeBlockInfo,
     start: *mut u8,
     end: *mut u8,
+    #[cfg(debug_assertions)]
+    pub debug: bool,
 }
 
 impl Heap {
@@ -74,17 +78,24 @@ impl Heap {
             },
             start: null_mut(),
             end: null_mut(),
+            #[cfg(debug_assertions)]
+            debug: false,
         }
     }
 
-    pub unsafe fn init(&mut self, range: Range<*mut u8>) {
+    pub unsafe fn reset(&mut self, range: &Range<*mut u8>) {
+        *self = Self::empty();
+        self.init(range);
+    }
+
+    pub unsafe fn init(&mut self, range: &Range<*mut u8>) {
         let head = self.head();
         let first = range.start as FreePointer;
         let size = range.end as usize - range.start as usize;
         create_free(
             first,
             FreeBlockInfo {
-                info: BlockInfo::new(true, size),
+                info: BlockInfo::new(size),
                 next: head,
                 prev: head,
             },
@@ -108,38 +119,41 @@ impl Heap {
             let free_size = (*free).info.size();
             // free block found
             if free_size >= size {
+                #[cfg(debug_assertions)]
+                {
+                    if self.debug {
+                        println!(
+                            "-------- \x1b[92malloc\x1b[0m: {:?}; size 0x{:x}",
+                            free, size
+                        );
+                    }
+                }
                 // deal with leftover space
                 let leftover = free_size - size;
                 if leftover < FREE_SIZE {
+                    // consume if not enough space for another free block
                     size = free_size;
                     let mut next_used = free.byte_add(size) as BlockPointer;
                     if next_used as *mut u8 == self.end {
                         next_used = &mut self.head.info;
                     }
                     (*next_used).set_prev_used();
-                    let prev = (*free).prev;
-                    let next = (*free).next;
-                    (*prev).next = next;
-                    (*next).prev = prev;
+                    remove_free(free);
                 } else {
+                    // otherwise create another free
                     let new_free = free.byte_add(size);
-                    let prev = (*free).prev;
-                    let next = (*free).next;
-                    create_free(
-                        new_free,
-                        FreeBlockInfo {
-                            info: BlockInfo::new(true, leftover),
-                            prev,
-                            next,
-                        },
-                    );
-                    (*prev).next = new_free;
-                    (*next).prev = new_free;
+                    self.insert_free((*free).prev, (*free).next, new_free, leftover);
                 }
                 // create block
                 let used = free as BlockPointer;
-                (*used) = BlockInfo::new(true, size);
+                (*used) = BlockInfo::new(size);
                 let data = used.byte_add(USED_SIZE) as *mut u8;
+                #[cfg(debug_assertions)]
+                {
+                    if self.debug {
+                        self.print();
+                    }
+                }
                 return data;
             }
         }
@@ -148,43 +162,79 @@ impl Heap {
 
     pub unsafe fn dealloc(&mut self, ptr: *mut u8, _: core::alloc::Layout) {
         let used = ptr.byte_sub(USED_SIZE) as BlockPointer;
+        #[cfg(debug_assertions)]
+        {
+            if self.debug {
+                println!("-------- \x1b[91mdealloc\x1b[0m: {:?}", used);
+            }
+        }
         let mut size = (*used).size();
-        let old_size = size;
         let mut addr = used as FreePointer;
-        let mut prev = self.head();
-        let mut next = self.head.next;
+        let next = self.next(used);
+        // merge with behind if free
         if !(*used).prev_used() {
-            let prev_free = *(used.byte_sub(PTR_SIZE) as *mut FreePointer);
-            addr = prev_free;
-            size += (*prev_free).info.size();
-            prev = (*prev_free).prev;
-            next = (*prev_free).next;
+            let prev = *(used.byte_sub(PTR_SIZE) as *mut FreePointer);
+            addr = prev;
+            size += (*prev).info.size();
+            remove_free(prev);
         }
-        let mut n_block = used.byte_add(old_size);
-        if n_block as *mut u8 != self.end {
-            let mut nn_block = n_block.byte_add((*n_block).size());
-            if nn_block as *mut u8 == self.end {
-                nn_block = &mut self.head.info;
-            }
-            if !(*nn_block).prev_used() {
-                size += (*n_block).size();
-                next = (*next).next;
+        // merge with after if free
+        if !self.is_end(next) && self.is_free(next) {
+            size += (*next).size();
+            let ahead = next as FreePointer;
+            remove_free(ahead);
+        }
+        // create & insert
+        let head = self.head();
+        self.insert_free(head, self.head.next, addr, size);
+        (*next).unset_prev_used();
+
+        #[cfg(debug_assertions)]
+        {
+            if self.debug {
+                self.print();
             }
         }
+    }
+
+    unsafe fn insert_free(
+        &mut self,
+        prev: FreePointer,
+        next: FreePointer,
+        addr: FreePointer,
+        size: usize,
+    ) {
         create_free(
             addr,
             FreeBlockInfo {
-                info: BlockInfo::new(true, size),
+                info: BlockInfo::new(size),
                 prev,
                 next,
             },
         );
         (*prev).next = addr;
         (*next).prev = addr;
-        if n_block as *mut u8 == self.end {
-            n_block = &mut self.head.info;
+    }
+
+    unsafe fn next(&mut self, block: BlockPointer) -> BlockPointer {
+        let mut next = block.byte_add((*block).size());
+        // head is "end" of list
+        if next as *mut u8 == self.end {
+            next = &mut self.head.info;
         }
-        (*n_block).unset_prev_used();
+        next
+    }
+
+    unsafe fn is_end(&self, block: BlockPointer) -> bool {
+        block as *mut u8 == self.end
+    }
+
+    unsafe fn is_used(&mut self, block: BlockPointer) -> bool {
+        (*self.next(block)).prev_used()
+    }
+
+    unsafe fn is_free(&mut self, block: BlockPointer) -> bool {
+        !self.is_used(block)
     }
 
     pub fn iter_free(&mut self) -> FreeBlockIter {
@@ -206,21 +256,35 @@ impl Heap {
 
     pub fn print(&mut self) {
         unsafe {
-            println!("heap: {:?} -> {:?}", self.start, self.end);
+            println!("heap: {:?} -> {:?}", self.start, self.end,);
+            let ptyp = if self.head.prev_used() {
+                "used"
+            } else {
+                "free"
+            };
+            println!(" - {:?}: head, prev is {}", self.head(), ptyp);
+            println!(
+                "   L prev: {:?}, next: {:?}",
+                self.head.prev, self.head.next
+            );
             for block in self.iter_block() {
                 let size = (*block).size();
                 let mut n_block = block.byte_add(size);
                 if n_block as *mut u8 == self.end {
                     n_block = &mut self.head.info;
                 }
-                let used = if (*n_block).prev_used() {
-                    "used"
-                } else {
-                    "free"
-                };
-                println!(" - {:?}: {}, size 0x{:x}", block, used, size);
+                let used = (*n_block).prev_used();
+                let typ = if used { "used" } else { "free" };
+                let ptyp = if (*block).prev_used() { "used" } else { "free" };
+                println!(
+                    " - {:?}: {}, prev is {}, size 0x{:x}",
+                    block, typ, ptyp, size
+                );
+                if !used {
+                    let block = block as FreePointer;
+                    println!("   L prev: {:?}, next: {:?}", (*block).prev, (*block).next);
+                }
             }
-            println!();
         }
     }
 }
@@ -230,6 +294,13 @@ unsafe fn create_free(addr: FreePointer, info: FreeBlockInfo) {
     *addr = info;
     let end = addr.byte_add(len).byte_sub(PTR_SIZE) as *mut FreePointer;
     *end = addr;
+}
+
+unsafe fn remove_free(block: FreePointer) {
+    let next = (*block).next;
+    let prev = (*block).prev;
+    (*next).prev = prev;
+    (*prev).next = next;
 }
 
 pub struct FreeBlockIter {

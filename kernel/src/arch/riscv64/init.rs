@@ -2,7 +2,7 @@ use core::{arch::asm, ops::Range};
 
 use crate::{
     arch::{asm, csr, interrupts, paging, wait},
-    fdt::FDT,
+    dev::fdt::FDT,
     start,
 };
 
@@ -70,5 +70,8 @@ pub unsafe fn init() -> ! {
         end: raw_mem_range.end(),
     };
     to_supervisor();
-    start(heap_mem, fdt)
+    start(crate::StartInfo {
+        mem_range: heap_mem,
+        dt: fdt,
+    })
 }

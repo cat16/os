@@ -1,15 +1,19 @@
 // garbage .1% finished FDT implementation
 
+use alloc::format;
+
 use crate::{
     println,
-    util::{bits::{u32_from_bytes, Be}, lazy::LazyConst},
+    util::bits::{u32_from_bytes, Be},
 };
 use core::{
-    fmt::Debug, mem::{size_of, transmute}, ops::Range, slice
+    fmt::Debug,
+    mem::{size_of, transmute},
+    ops::Range,
+    slice,
 };
 
 const MAGIC: u32 = 0xd00dfeed;
-pub static DT: LazyConst<FDT> = LazyConst::new();
 
 #[repr(u32)]
 #[derive(Clone, Copy, Debug)]
@@ -20,7 +24,9 @@ enum Token {
     Nop,
     End,
 }
+
 const TOKEN_SIZE: usize = size_of::<Token>();
+
 impl Token {
     pub fn from_bytes(bytes: &[u8]) -> Option<Self> {
         let val = u32_from_bytes(bytes)?.to_be();
@@ -61,6 +67,15 @@ pub struct RawProp {
 pub struct Prop {
     pub name: &'static str,
     pub data: &'static [u8],
+}
+
+impl Debug for Prop {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.debug_struct("Prop")
+            .field("name", &self.name)
+            .field("data_len", &self.data)
+            .finish()
+    }
 }
 
 impl Prop {
@@ -211,6 +226,16 @@ pub struct Node {
     pub name: &'static str,
     pub strings: &'static [u8],
     pub props: &'static [u8],
+}
+
+impl Debug for Node {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        let props: alloc::vec::Vec<_> = self.into_iter().map(|p| format!("{:?}", p)).collect();
+        f.debug_struct("Node")
+            .field("name", &self.name)
+            .field("props", &props)
+            .finish()
+    }
 }
 
 impl IntoIterator for &Node {
